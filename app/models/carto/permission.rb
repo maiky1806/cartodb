@@ -129,6 +129,14 @@ class Carto::Permission < ActiveRecord::Base
     SORTED_ACCESSES.index(permission_for_user(user)) <= SORTED_ACCESSES.index(permission_type)
   end
 
+  def self.has_read_permission?(permission_type)
+    ACCESS_READONLY == permission_type || ACCESS_READWRITE == permission_type
+  end
+
+  def self.has_write_permission?(permission_type)
+    ACCESS_READWRITE == permission_type
+  end
+
   def entity
     visualization
   end

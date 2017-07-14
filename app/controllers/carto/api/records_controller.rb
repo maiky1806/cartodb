@@ -10,6 +10,8 @@ module Carto
       REJECT_PARAMS = %w{ format controller action row_id requestId column_id
                           api_key table_id oauth_token oauth_token_secret api_key user_domain }.freeze
 
+      skip_before_filter :api_authorization_required
+      before_filter :records_authorize
       before_filter :set_start_time
       before_filter :load_user_table, only: [:show, :create, :update, :destroy]
       before_filter :read_privileges?, only: [:show]
@@ -80,11 +82,37 @@ module Carto
       end
 
       def read_privileges?
-        head(401) unless current_user && @user_table.visualization.is_viewable_by_user?(current_user)
+        if params[:user_token]
+          if $users_metadata.HGET(params[:user_token], "user") == current_user.username && Carto::Permission.has_read_permission?($users_metadata.HGET(params[:user_token], "permission"))
+            params.delete :user_token
+            true
+          else
+            head(401)
+          end
+        else
+          head(401) unless current_user && @user_table.visualization.is_viewable_by_user?(current_user)
+        end
       end
 
       def write_privileges?
-        head(401) unless current_user && @user_table.visualization.writable_by?(current_user)
+        if params[:user_token]
+          if $users_metadata.HGET(params[:user_token], "user") == current_user.username && Carto::Permission.has_write_permission?($users_metadata.HGET(params[:user_token], "permission"))
+            params.delete :user_token
+            true
+          else
+            head(401)
+          end
+        else
+          head(401) unless current_user && @user_table.visualization.writable_by?(current_user)
+        end
+      end
+
+      def records_authorize
+        if params[:user_token]
+          user_name = CartoDB.extract_subdomain(request)
+          params[:api_key] = $users_metadata.HMGET("rails:users:#{user_name}", "map_key").first
+        end
+        api_authorization_required
       end
     end
   end
